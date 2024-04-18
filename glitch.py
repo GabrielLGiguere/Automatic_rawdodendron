@@ -2,9 +2,7 @@
 from librosa import load
 from pyparsing import C
 import soundfile
-import ffmpeg
 import os, glob
-import cv2
 from pathlib import Path
 import subprocess
 from tkinter import filedialog
@@ -175,7 +173,7 @@ if __name__ == "__main__":
     Glitch.creating_dir(vid,fps, width)
     count = Glitch.extracting()
 
-    with multiprocessing.Pool(8) as pool:
+    with multiprocessing.Pool(2) as pool:
         #count  = Glitch.chunking(count)
         #frames_dir = chunking(count)
         #sound_dir = chunking(sound_dir)
@@ -186,7 +184,7 @@ if __name__ == "__main__":
         result = pool.map(Glitch.transform, count)
         pool.close()
 
-    with multiprocessing.Pool(8) as pool:
+    with multiprocessing.Pool(2) as pool:
         #count  = Glitch.chunking(count)
         #frames_dir = chunking(count)
         #sound_dir = chunking(sound_dir)
@@ -196,7 +194,7 @@ if __name__ == "__main__":
         #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
         effects = pool.map(Glitch.add_effects, count)
         pool.close()
-    with multiprocessing.Pool(8) as pool:
+    with multiprocessing.Pool(2) as pool:
         #count  = Glitch.chunking(count)
         #frames_dir = chunking(count)
         #sound_dir = chunking(sound_dir)
