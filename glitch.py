@@ -1,25 +1,22 @@
 
 from librosa import load
 from pyparsing import C
-import soundfile
-import ffmpeg
 import os, glob
-import cv2
 from pathlib import Path
-import subprocess
 from tkinter import filedialog
 from pedalboard import Delay, Pedalboard, Chorus, Reverb, Delay, Distortion, HighpassFilter, Phaser, Bitcrush, IIRFilter, Compressor, LadderFilter, Gain, Convolution
 from pedalboard.io import AudioFile
 import moviepy.editor as mpy
-import math
 import multiprocessing 
 import imageio.v3 as iio
 import imageio.v2 as iio2
 import numpy as np
-import sys
+import numpy.random
 import rawdodendron as raw
 #vid = "/vid/test.mkv"
 from functools import partial
+from pydub import AudioSegment
+from pydub.playback import play
 
 class glitch():
     def __init__(self):
@@ -85,7 +82,6 @@ class glitch():
             #print("outputs: {}".format(outputs[x]))
             os.system('python rawdodendron.py -i {}/{}_frame{}.jpg  -o {}/{}_sound{}.wav -w {} --ignore-history'.format(self.frames_dir, self.vidname, x, self.sound_dir, self.vidname,x, self.width))
         #return outputs    
-
 #            x = str(i)
            # x = x[:-1]
     def add_effects(self, count):
@@ -97,12 +93,9 @@ class glitch():
             x= int(x)
             #sine = self.map_range(math.sin(int(x)+ math.sin(int(x))), -1, 1, 0,  32)
             board = Pedalboard([
-                                Compressor(threshold_db=-50, ratio=25),
-                                Gain(gain_db=30),
-                                Chorus(),
-                                LadderFilter(mode=LadderFilter.Mode.HPF12, cutoff_hz=900),
-                                Phaser(),
-                                Reverb(room_size=0.25)])
+                                Phaser(rate_hz = 1, depth = 0.8),
+                                Reverb()
+                                ])
             path = "{}/{}_mod{}.wav".format(self.mods_dir,self.vidname,x)
             check_file = os.path.isfile(path)
             infile = "{}/{}_sound{}.wav".format(self.sound_dir, self.vidname, x)
@@ -142,7 +135,13 @@ class glitch():
                 image = iio.imread(complete_path)
                 writer.append_data(image)
 
-    
+    def save_rand(self,count):
+        count = np.random.shuffle(count)
+        with iio2.get_writer('test_{}.mp4'.format(self.vidname), fps = self.fps) as writer:
+            for x in np.nditer(count):
+                image = iio.imread(count[x])
+                writer.append_data(image)
+
 
 
     def map_range(x, in_min, in_max, out_min, out_max):
@@ -155,6 +154,15 @@ class glitch():
         chunk_size = int(element.shape[0] / num_processes) 
         chunks = [element[i:i + chunk_size] for i in range(0, element.shape[0], chunk_size)] 
         return chunks
+
+
+
+class UI():
+    def __init__():
+        
+
+
+
 
 if __name__ == "__main__":
     print("Number of cpu : ", multiprocessing.cpu_count())
@@ -174,7 +182,6 @@ if __name__ == "__main__":
 
     Glitch.creating_dir(vid,fps, width)
     count = Glitch.extracting()
-
     with multiprocessing.Pool(8) as pool:
         #count  = Glitch.chunking(count)
         #frames_dir = chunking(count)
@@ -207,11 +214,9 @@ if __name__ == "__main__":
         revert = pool.map(Glitch.convertBack, count)
         pool.close()
 
-
-
-        print(result)
-
-    #glitch.Tpool_handler()
-    #glitch.Epool_handler()
-    #glitch.Cpool_handler()
+    
     Glitch.save()
+        #print(result)
+
+   
+

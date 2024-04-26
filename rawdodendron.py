@@ -755,7 +755,830 @@ class RawWindow(QMainWindow):
                 return self.final_size / self.args.bitrate
             else:
                 return (self.width, self.height)
+class RawWindow(QMainWindow):
+
+    history = History()
+        
+    class Input:
+        counter = 0
+
+        class OutputDescription:
+            def __init__(self, input_name, extension):
+                path = pathlib.Path(input_name)
+                parent = str(path.parent)
+                stem = str(path.stem)
+                m = re.search('(.*) \(([0-9]+?)\)$', stem)
+                if m:
+                    found = m.group(2)
+                    i = int(found)
+                    stem = m.group(1)
+                    self.name = parent + "/" + stem + " (" + str(i) + ")" + extension
+                else:
+                    self.name = parent + "/" + stem + extension
+                    i = 0
+                while os.path.exists(self.name):
+                    i += 1
+                    self.name = parent + "/" + stem + " (" + str(i) + ")" + extension
+                print(self.name)
+
+        def __init__(self, filename, args):
+            self.filename = filename
+            self.args = copy(args)
+
+            self.id = RawWindow.Input.counter
+            RawWindow.Input.counter += 1
+
+            self.load_input_file()
+
+        def set_parameter(self, key, value):
+            if key == "conversion":
+                self.set_conversion_method(value)
+                return True
+            elif key == "missing-bytes":
+                self.set_missing_bytes_method(value)
+                return True
+            elif key == "pixel-mode":
+                if not self.is_image:
+                    self.set_pixel_mode(value)
+                    return True
+            elif key == "ratio":
+                if not self.is_image:
+                    self.set_size_mode("ratio")
+                    self.set_ratio_value(value)
+                    return True
+            elif key == "width":
+                if not self.is_image:
+                    self.set_size_mode("width")
+                    self.set_width_value(value)
+                    return True
+            elif key == "bitrate":
+                if self.is_image:
+                    self.set_bitrate(value)
+                    return True
+            elif key == "channels":
+                if self.is_image:
+                    self.set_channels(value)
+                    return True
+
+            return False
+            
+
+        def get_missing_bytes_method(self):
+            if self.args.truncate:
+                return "truncate"
+            else:
+                return "add-extra-bytes"
+
+        def set_missing_bytes_method(self, method):
+            self.args.truncate = method == "truncate"
+            self.args.add_extra_bytes = method == "add-extra-bytes"
+        
+        def get_conversion_method(self):
+            return Utils.conversion_method(self.args)
+
+        def set_conversion_method(self, method):
+            self.args.conversion_linear = method == "linear"
+            self.args.conversion_u_law = method == "inverse u-law"
+            self.args.conversion_inverse_u_law = method == "u-law"
+            self.args.conversion_a_law = method == "inverse a-law"
+            self.args.conversion_inverse_a_law = method == "a-law"
+
+        def get_bitrate(self):
+            return self.args.bitrate
+
+        def set_bitrate(self, br):
+            self.args.bitrate = br
+
+        def get_channels(self):
+            if self.args.mono:
+                return "mono"
+            else:
+                return "stereo"
+
+        def set_channels(self, channels):
+            self.args.mono = channels == "mono"
+            self.args.stereo = channels == "stereo"
+
+        def get_ratio_size(self):
+            return self.args.ratio
+
+        def set_ratio_value(self, value):
+            self.args.ratio = float(value.replace(",", "."))
+            self.update_size()
+
+        def get_width_size(self):
+            return self.args.width
+
+        def set_width_value(self, value):
+            self.args.width = int(value)
+            self.update_size()
+
+        def get_size_mode(self):
+            if self.args.width:
+                return "width"
+            else:
+                return "ratio"
+        
+        def set_size_mode(self, mode):            
+            self.args.ratio = self.width / self.height if mode == "ratio" else None
+            self.args.width = self.width if mode == "width" else None
+            self.update_size()
+            
+        def get_pixel_mode(self):
+            if self.args.greyscale:
+                return "greyscale"
+            elif self.args.rgba:
+                return "rgba"
+            else:
+                return "rgb"
+
+
+        
+        def set_pixel_mode(self, mode):
+            self.args.greyscale = mode == "greyscale"
+            self.args.rgb = mode == "rgb"
+            self.args.rgba = mode == "rgba"
+            self.update_size()
+
+        # reload the input file and identify if it changed or not
+        def file_properties_changed(self):
+            try:
+                new_input_file = Rawdodendron.load_input_file(self.filename, self.args.verbose)
+            
+                self.update_size()
+                desc = Utils.description(self.input_file)
+                new_desc = Utils.description(new_input_file)
+                if desc == new_desc:
+                    self.input_file = new_input_file
+                    return False
+                else:
+                    return True
+            except:
+                return True
+
+        def get_data(self):
+            if self.is_image:
+                return self.input_file.tobytes()
+            else:
+                return self.input_file.raw_data
+
+        def update_size(self):
+            if self.is_image:
+                self.width = None
+                self.heigh = None
+                self.missing = None
+                self.final_size = len(self.input_file.tobytes())
+                if self.final_size % (2 if self.get_channels() == "stero" else 1) != 0:
+                    if self.args.truncate:
+                        self.final_size -= 1
+                    else:
+                        self.final_size += 1
+            else:
+                self.width, self.height, self.missing = Rawdodendron.get_image_size(self.get_data(), self.args)
+                self.final_size = len(self.input_file.raw_data) + self.missing
+
+        def load_input_file(self):
+            self.is_valid = False
+            try:
+                self.input_file = Rawdodendron.load_input_file(self.filename, self.args.verbose)
+                self.is_valid = self.input_file != None
+
+                if self.is_valid:
+                    if isinstance(self.input_file, Image.Image):
+                        if self.args.verbose:
+                            print("Loading image:", self.filename)
+                        self.is_image = True
+                        RawWindow.history.consolidate_parameters_from_image(self.args, self.input_file)
+                        self.update_size()
+                        # set output name
+                        self.computeNextPossibleOutputName()
+                    elif isinstance(self.input_file, AudioSegment):
+                        if self.args.verbose:
+                            print("Loading audio:", self.filename)
+                        self.is_image = False
+                        RawWindow.history.consolidate_parameters_from_audio(self.args, self.input_file)
+                        self.update_size()
+                        # set output name
+                        self.computeNextPossibleOutputName()
+                        
+            except:
+                self.is_valid = False
+
+        def computeNextPossibleOutputName(self):
+            if self.args.output != None:
+                filename = self.args.output.name
+                extension = pathlib.Path(self.args.output.name).suffix
+            elif self.is_image:
+                filename = self.filename
+                extension = ".wav"
+            else:
+                filename = self.filename
+                extension = ".png"
+            self.args.output = RawWindow.Input.OutputDescription(filename, extension)
+
+
+        def getFileName(self):
+            return os.path.basename(self.filename)
+
+        def set_output_file(self, filename):
+            self.args.output.name = filename
+
+        def inverse(self):
+            self.filename = self.args.output.name
+            self.args.output = None
+            self.load_input_file()
+
+        def get_size_info(self):
+            if self.is_image:
+                return self.final_size / self.args.bitrate
+            else:
+                return (self.width, self.height)
                 
+
+            
+        
+
+    class InputWidget(QWidget):
+        def __init__(self, input, listWidget, rawWindow, parent = None):
+            super(QWidget, self).__init__(parent)
+            self.input = input
+
+            self.hbox = QHBoxLayout()
+            self.setLayout(self.hbox)
+
+            # add icon
+            self.image_size = 32
+            self.icon = QLabel()
+            self.icon.setFixedWidth(self.image_size)
+            self.hbox.addWidget(self.icon)
+
+            # add filename
+            self.label = QLabel()
+            self.hbox.addWidget(self.label)
+
+            self.delButton = QPushButton()
+            self.delButton.setText("Supprimer")
+            self.delButton.setFixedSize(self.delButton.sizeHint())
+            self.delButton.clicked.connect(lambda x: listWidget.on_delete_input(input, x))
+            self.hbox.addWidget(self.delButton)
+
+            self.update()
+    
+        def update(self):
+            if self.input.is_image:
+                self.icon.setPixmap(QIcon.fromTheme("image").pixmap(self.image_size))
+            else:
+                self.icon.setPixmap(QIcon.fromTheme("audio").pixmap(self.image_size))
+            self.label.setText(self.input.getFileName())
+
+
+
+    class InputListWidget(QWidget):
+        def __init__(self, rawWindow, parent = None):
+            super(QWidget, self).__init__(parent)
+            
+            self.rawWindow = rawWindow
+            
+            self.vbox = QVBoxLayout()
+            self.setLayout(self.vbox)
+
+            # create header with buttons
+            self.header = QWidget()
+            self.vbox.addWidget(self.header)
+            self.hbox = QHBoxLayout()
+            self.header.setLayout(self.hbox)
+
+            # add button
+            self.addButton = QPushButton()
+            self.addButton.setText("Ajouter un fichier")
+            self.addButton.setIcon(QIcon.fromTheme("document-open"))
+            self.hbox.addWidget(self.addButton)
+            self.addButton.clicked.connect(rawWindow.on_add_input)
+
+            # clear button
+            self.clearButton = QPushButton()
+            self.clearButton.setText("Vider la liste")
+            self.clearButton.setIcon(QIcon.fromTheme("delete"))
+            self.clearButton.clicked.connect(self.on_delete_all)
+            self.hbox.addWidget(self.clearButton)
+
+            # create list
+            self.list = QListWidget()
+            self.list.currentItemChanged.connect(lambda x: rawWindow.on_active_input(self.list.currentItem().input if self.list.currentItem() != None else None, x))
+            self.vbox.addWidget(self.list)
+
+        def addInput(self, input):
+            widget = RawWindow.InputWidget(input, self, self.rawWindow)
+            list_item = QListWidgetItem(self.list)
+            list_item.input = input
+            list_item.widget = widget
+            widget.adjustSize()
+            list_item.setSizeHint(widget.sizeHint())
+            self.list.setItemWidget(list_item, widget)
+            widget.setFocus()
+            self.rawWindow.setNbElements(self.list.count())
+
+        def updateWidgets(self):
+            for r in range(self.list.count()):
+                row = self.list.item(r).widget.update()
+
+
+        @pyqtSlot()
+        def on_delete_all(self):
+            self.list.clear()
+            self.list.setFocus()
+            self.rawWindow.setNbElements(self.list.count())
+            self.rawWindow.showMessage("Liste vidée")
+
+        @pyqtSlot()
+        def on_delete_input(self, input, e):
+            for r in range(self.list.count()):
+                row = self.list.item(r)
+                if row.input.id == input.id:
+                    self.rawWindow.showMessage("Fichier " + input.filename + " retiré de la liste des entrées")
+                    self.list.takeItem(r)
+                    self.list.setFocus()
+                    break
+            self.rawWindow.setNbElements(self.list.count())
+
+        def getInputs(self):
+            return [self.list.item(r).input for r in range(self.list.count())]
+        
+        def setFocus(self):
+            self.list.setFocus()
+
+    class EditPanel(QWidget):    
+        def __init__(self, parent = None, rawWindow = None):
+            super(QWidget, self).__init__(parent)
+            self.current = None
+            self.rawWindow = rawWindow
+            self.vbox = QVBoxLayout()
+            self.setLayout(self.vbox)
+
+            self.noContentPanel = QLabel()
+            self.noContentPanel.setText("Aucun fichier sélectionné")
+            self.vbox.addWidget(self.noContentPanel)
+
+            # create the common panel
+            self.commonPanel = QGroupBox("Propriétés principales")
+            gridCommonPanel = QGridLayout()
+            self.commonPanel.setLayout(gridCommonPanel)
+            self.vbox.addWidget(self.commonPanel)
+
+            title = QLabel()
+            title.setText("Entrée:")
+            gridCommonPanel.addWidget(title, 0, 0)
+            self.inputFilename = QLineEdit()
+            self.inputFilename.setReadOnly(True)
+            gridCommonPanel.addWidget(self.inputFilename, 0, 1, 1, 6)
+            
+            title = QLabel()
+            title.setText("Sortie:")
+            gridCommonPanel.addWidget(title, 1, 0)
+            self.outputFilename = QLineEdit()
+            self.outputFilename.editingFinished.connect(self.onUpdateOutputFile)
+            gridCommonPanel.addWidget(self.outputFilename, 1, 1, 1, 5)
+            self.outputExplorer = QPushButton()
+            self.outputExplorer.setText("Sélectionner...")
+            self.outputExplorer.clicked.connect(self.onOutputExplorerClicked)
+            gridCommonPanel.addWidget(self.outputExplorer, 1, 6)
+
+            title = QLabel()
+            title.setText("Conversion:")
+            gridCommonPanel.addWidget(title, 2, 0)
+            self.conversion = QComboBox()
+            self.conversion_values = [ ("linear", "linéaire"),
+                                        ("u-law", "u-law"),
+                                        ("inverse u-law", "u-law inverse"),
+                                        ("a-law", "a-law"),
+                                        ("inverse a-law", "a-law inverse")
+                                        ]
+            for i in self.conversion_values:
+                self.conversion.addItem(i[1])
+            self.conversion.currentIndexChanged.connect(self.onUpdateConversion)
+            gridCommonPanel.addWidget(self.conversion, 2, 1, 1, 4)
+            self.conversionToAll = QPushButton()
+            self.conversionToAll.setText("Copier à tous")
+            self.conversionToAll.clicked.connect(lambda x: rawWindow.on_set_parameter_to_all("conversion", self.current.get_conversion_method(), self.current.id))
+            gridCommonPanel.addWidget(self.conversionToAll, 2, 5, 1, 2)
+
+            title = QLabel()
+            title.setText("Données incomplètes:")
+            gridCommonPanel.addWidget(title, 3, 0)
+            self.missingBytes = QComboBox()
+            self.missingBytes_values = [ ("truncate", "tronquer"),
+                                         ("add-extra-bytes", "compléter")]
+            for i in self.missingBytes_values:
+                self.missingBytes.addItem(i[1])
+            self.missingBytes.currentIndexChanged.connect(self.onUpdateMissingBytes)
+            gridCommonPanel.addWidget(self.missingBytes, 3, 1, 1, 4)
+            self.missingBytesToAll = QPushButton()
+            self.missingBytesToAll.setText("Copier à tous")
+            self.missingBytesToAll.clicked.connect(lambda x: rawWindow.on_set_parameter_to_all("missing-bytes", self.current.get_missing_bytes_method(), self.current.id))
+            gridCommonPanel.addWidget(self.missingBytesToAll, 3, 5, 1, 2)
+
+
+            # create the image panel
+            self.imagePanel = QGroupBox("Propriétés de l'image cible")
+            gridImagePanel = QGridLayout()
+            self.imagePanel.setLayout(gridImagePanel)
+            self.vbox.addWidget(self.imagePanel)
+
+
+            title = QLabel()
+            title.setText("Mode:")
+            gridImagePanel.addWidget(title, 0, 0)
+            self.mode = QComboBox()
+            self.mode_values = [ ("greyscale", "Dégradé de gris"),
+                                ("rgba", "couleur + transparence (RGB)"),
+                                ("rgb", "couleur (RGB)")]
+            for i in self.mode_values:
+                self.mode.addItem(i[1])
+            self.mode.currentIndexChanged.connect(self.onUpdateMode)
+            gridImagePanel.addWidget(self.mode, 0, 1, 1, 4)
+            self.modeToAll = QPushButton()
+            self.modeToAll.setText("Copier à tous")
+            self.modeToAll.clicked.connect(lambda x: rawWindow.on_set_parameter_to_all("pixel-mode", self.current.get_pixel_mode(), self.current.id))
+            gridImagePanel.addWidget(self.modeToAll, 0, 5, 1, 2)
+
+            title = QLabel()
+            title.setText("Taille:")
+            gridImagePanel.addWidget(title, 1, 0)
+            self.sizeMode = QComboBox()
+            self.sizeMode_values = [ ("ratio", "ratio"),
+                                        ("width", "largeur")]
+            for i in self.sizeMode_values:
+                self.sizeMode.addItem(i[1])
+            self.sizeMode.currentIndexChanged.connect(self.onUpdateSizeMode)
+            gridImagePanel.addWidget(self.sizeMode, 1, 1, 1, 2)
+            self.sizeValue = QLineEdit()
+            self.sizeValue.editingFinished.connect(self.onUpdateSizeValue)
+            gridImagePanel.addWidget(self.sizeValue, 1, 3, 1, 2)
+            self.sizeModeToAll = QPushButton()
+            self.sizeModeToAll.setText("Copier à tous")
+            if self.sizeMode_values[self.sizeMode.currentIndex()][0] == "ratio":
+                self.sizeModeToAll.clicked.connect(lambda x: rawWindow.on_set_parameter_to_all("ratio", self.current.get_ratio_size(), self.current.id))
+            else:
+                self.sizeModeToAll.clicked.connect(lambda x: rawWindow.on_set_parameter_to_all("width", self.current.get_width_size(), self.current.id))
+            gridImagePanel.addWidget(self.sizeModeToAll, 1, 5, 1, 2)
+
+            # create the audio panel
+            self.audioPanel = QGroupBox("Propriétés de l'audio cible")
+            gridAudioPanel = QGridLayout()
+            self.audioPanel.setLayout(gridAudioPanel)
+            self.vbox.addWidget(self.audioPanel)
+
+            title = QLabel()
+            title.setText("Échantillonage:")
+            gridAudioPanel.addWidget(title, 0, 0)
+            self.bitrate = QComboBox()
+            self.bitrate_values = [ (44100, "44.1 kHz"),
+                                    (48000, "48 kHz")]
+            for i in self.bitrate_values:
+                self.bitrate.addItem(i[1])
+            self.bitrate.currentIndexChanged.connect(self.onUpdateBitrate)
+            gridAudioPanel.addWidget(self.bitrate, 0, 1, 1, 4)
+            self.bitrateToAll = QPushButton()
+            self.bitrateToAll.setText("Copier à tous")
+            self.bitrateToAll.clicked.connect(lambda x: rawWindow.on_set_parameter_to_all("bitrate", self.current.get_bitrate(), self.current.id))
+            gridAudioPanel.addWidget(self.bitrateToAll, 0, 5, 1, 2)
+
+            title = QLabel()
+            title.setText("Canaux:")
+            gridAudioPanel.addWidget(title, 1, 0)
+            self.channels = QComboBox()
+            self.channels_values = [ ("mono", "Mono"),
+                                    ("stereo", "Stéréo")]
+            for i in self.channels_values:
+                self.channels.addItem(i[1])
+            self.channels.currentIndexChanged.connect(self.onUpdateChannels)
+            gridAudioPanel.addWidget(self.channels, 1, 1, 1, 4)
+            self.channelsToAll = QPushButton()
+            self.channelsToAll.setText("Copier à tous")
+            self.channelsToAll.clicked.connect(lambda x: rawWindow.on_set_parameter_to_all("channels", self.current.get_channels(), self.current.id))
+            gridAudioPanel.addWidget(self.channelsToAll, 1, 5, 1, 2)
+
+            self.detailsText = QLabel()
+            self.vbox.addWidget(self.detailsText)
+
+            self.setCurrent(None)
+
+        def setCurrent(self, input):
+            self.current = input
+            self.noContentPanel.setVisible(input == None)
+            self.commonPanel.setVisible(input != None)
+            self.imagePanel.setVisible(input != None and not input.is_image)
+            self.audioPanel.setVisible(input != None and input.is_image)
+            
+            # update widget contents
+            self.updateUI()
+
+        def getIndexFromList(self, value, l):
+            for i in range(len(l)):
+                if l[i][0] == value:
+                    return i
+            print("Error: no corresponding entry:", value, l)
+            return 0
+
+        def fullUpdateUI(self):
+            self.setCurrent(self.current)
+
+        def updateUI(self):
+            if self.current != None:
+                self.inputFilename.setText(self.current.filename)
+                self.outputFilename.setText(self.current.args.output.name)
+                self.missingBytes.setCurrentIndex(self.getIndexFromList(self.current.get_missing_bytes_method(), self.missingBytes_values))
+                self.conversion.setCurrentIndex(self.getIndexFromList(self.current.get_conversion_method(), self.conversion_values))
+
+                if self.current.is_image:
+                    self.bitrate.setCurrentIndex(self.getIndexFromList(self.current.get_bitrate(), self.bitrate_values))
+                    self.channels.setCurrentIndex(self.getIndexFromList(self.current.get_channels(), self.channels_values))
+                else:
+                    self.mode.setCurrentIndex(self.getIndexFromList(self.current.get_pixel_mode(), self.mode_values))
+                    self.sizeMode.setCurrentIndex(self.getIndexFromList(self.current.get_size_mode(), self.sizeMode_values))
+                    self.update_sizeMode()
+            self.set_detailsText()
+
+        def update_sizeMode(self):
+            if self.current.get_size_mode() == "width":
+                self.sizeValue.setText(str(self.current.get_width_size()))
+                self.sizeValue.setValidator(QIntValidator(1, 100000, self))
+            else:
+                self.sizeValue.setText(str(self.current.get_ratio_size()).replace(".", ","))
+                self.sizeValue.setValidator(QDoubleValidator(0, 100, 4, self))
+
+        def set_detailsText(self):
+            if self.current != None:
+                sizes = self.current.get_size_info()
+                if self.current.is_image:
+                    if sizes > 60 * 3:
+                        self.detailsText.setText("Un fichier audio de {:.1f} minutes sera généré".format(sizes / 60))
+                    elif sizes > 60:
+                        self.detailsText.setText("Un fichier audio de {:.0f} secondes sera généré".format(sizes))
+                    else:
+                        self.detailsText.setText("Un fichier audio de {:.1f} secondes sera généré".format(sizes))
+                else:
+                    self.detailsText.setText("Une image de " + str(sizes[0]) + " par " + str(sizes[1]) + " pixels sera générée")
+            else:
+                self.detailsText.setText("")
+
+        @pyqtSlot()
+        def onOutputExplorerClicked(self):
+            options = QFileDialog.Options()
+            if self.current.is_image:
+                filename, _ = QFileDialog.getSaveFileName(self,"Convertir l'image en audio", self.outputFilename.text(),
+                            "Sons (*.wav *.ogg *.mp3 *.flac);; Tous les fichiers (*.*)", options=options)
+                if filename != "":
+                    self.outputFilename.setText(filename)
+            else:
+                filename, _ = QFileDialog.getSaveFileName(self,"Convertir l'image en audio", self.outputFilename.text(),
+                            "Images (*.png *.jpg *.bmp);; Tous les fichiers (*.*)", options=options)
+                if filename != "":
+                    self.outputFilename.setText(filename)
+            
+        @pyqtSlot()
+        def onUpdateOutputFile(self):
+            self.current.set_output_file(self.outputFilename.text())
+        
+        @pyqtSlot()
+        def onUpdateMissingBytes(self):
+            self.current.set_missing_bytes_method(self.missingBytes_values[self.missingBytes.currentIndex()][0])
+            self.set_detailsText()
+
+        @pyqtSlot()
+        def onUpdateConversion(self):
+            self.current.set_conversion_method(self.conversion_values[self.conversion.currentIndex()][0])
+            self.set_detailsText()
+
+        @pyqtSlot()
+        def onUpdateBitrate(self):
+            self.current.set_bitrate(self.bitrate_values[self.bitrate.currentIndex()][0])
+            self.set_detailsText()
+
+        @pyqtSlot()
+        def onUpdateChannels(self):
+            self.current.set_channels(self.channels_values[self.channels.currentIndex()][0])
+            self.set_detailsText()
+
+        @pyqtSlot()
+        def onUpdateMode(self):
+            self.current.set_pixel_mode(self.mode_values[self.mode.currentIndex()][0])
+            self.set_detailsText()
+
+        @pyqtSlot()
+        def onUpdateSizeMode(self):
+            self.current.set_size_mode(self.sizeMode_values[self.sizeMode.currentIndex()][0])
+            self.update_sizeMode()
+            self.set_detailsText()
+
+        @pyqtSlot()
+        def onUpdateSizeValue(self):
+            if self.current.get_size_mode() == "width":
+                self.current.set_width_value(self.sizeValue.text())
+            else:
+                self.current.set_ratio_value(self.sizeValue.text())
+            self.set_detailsText()
+
+    def __init__(self, args, parent = None):
+        super(RawWindow, self).__init__(parent)
+        self.setAcceptDrops(True)
+        self.resize(600, 800)
+        self.setWindowTitle("Rawdodendron")
+
+        self.args = args
+
+        bar = self.menuBar()
+        file = bar.addMenu("Fichier")
+        file.addAction("Ouvrir...").setShortcut(QKeySequence("Ctrl+O"))
+        file.addAction("Quitter").setShortcut(QKeySequence("Ctrl+Q"))
+        file.triggered[QAction].connect(self.processtrigger)
+
+        # create the main widget and its layout
+        self.main_widget = QWidget()
+        self.vbox = QVBoxLayout()
+        self.main_widget.setLayout(self.vbox)
+        self.setCentralWidget(self.main_widget)
+
+        # add a splitter
+        self.splitter = QSplitter(Qt.Vertical)
+        self.vbox.addWidget(self.splitter)
+
+        # create file list and add it to the splitter
+        self.inputs_widget = RawWindow.InputListWidget(self)
+        self.splitter.addWidget(self.inputs_widget)
+
+        # create the edit panel and add it tot the splitter
+        self.edit_panel = RawWindow.EditPanel(rawWindow = self)
+        self.splitter.addWidget(self.edit_panel)
+
+        self.bottom_bar = QWidget()
+        self.hbox = QHBoxLayout()
+        self.bottom_bar.setLayout(self.hbox)
+        self.vbox.addWidget(self.bottom_bar)
+
+        # add a process button
+        self.invertConversion = QRadioButton("Inverser après conversion")
+        self.invertConversion.setToolTip("Après conversion, les fichiers de la liste sont remplacés par les fichiers qui ont été générés, pour permettre une conversion réciproque rapide.")
+        self.invertConversion.setChecked(True)
+        self.hbox.addWidget(self.invertConversion)
+
+        self.processButton = QPushButton("Convertir tous les fichiers")
+        self.hbox.addWidget(self.processButton)
+        self.processButton.clicked.connect(self.process_inputs)
+
+        self.progressBar = QProgressBar()
+        self.hbox.addWidget(self.progressBar)
+        self.progressBar.setVisible(False)
+
+        self.setNbElements(0)
+
+        self.inputs_widget.setFocus()
+
+        self.error_dialog = QErrorMessage(self)
+
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
+
+        self.nbElements = 0
+
+        # if args.input is set, add the input file
+        if args.input != None:
+            self.addInputFile(args.input.name)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.accept()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        files = [unicode(u.toLocalFile()) for u in event.mimeData().urls()]
+        for f in files:
+            self.addInputFile(f)
+
+    def closeEvent(self, event):
+        if self.nbElements != 0:
+            reply = QMessageBox.question(self, "Vraiment quitter?", "La liste n'est pas vide. Voulez-vous vraiment quitter?")
+            if reply == QMessageBox.Yes:
+                event.accept() # let the window close
+            else:
+                event.ignore()
+        else:
+            event.accept() # let the window close
+
+
+
+    def addInputFile(self, filename):
+        input = RawWindow.Input(filename, args)
+        if input.is_valid:
+            print("Loading input file:", filename)
+            self.inputs_widget.addInput(input)
+            self.status_bar.showMessage(filename + " importé avec succès", 2000)
+        else:
+            print("Error while loading", filename)
+            self.error_dialog.showMessage("Le fichier " + filename + " n'est pas lisible par Rawdodendron.")
+            self.status_bar.showMessage(filename + ": format inconnu", 2000)
+
+    @pyqtSlot()
+    def on_set_parameter_to_all(self, key, value, currentID):
+        inputs = self.inputs_widget.getInputs()
+        nb = 0
+        for input in inputs:
+            if input.id != currentID:
+                if input.set_parameter(key, value):
+                    nb += 1
+        if nb > 1:
+            self.status_bar.showMessage("Réglage propagé à " + str(nb) + " entrées", 2000)
+        elif nb == 1:
+            self.status_bar.showMessage("Réglage propagé à 1 entrée", 2000)
+        else:
+            self.status_bar.showMessage("Aucune entrée modifiée", 2000)
+    
+    @pyqtSlot()
+    def process_inputs(self):
+        inputs = self.inputs_widget.getInputs()
+
+        # disable interface and draw a process bar
+        self.processButton.setVisible(False)
+        self.progressBar.setVisible(True)
+        self.progressBar.setRange(0, len(inputs))
+        self.progressBar.setValue(0)
+        self.inputs_widget.setEnabled(False)
+        self.edit_panel.setEnabled(False)
+        self.invertConversion.setEnabled(False)
+        
+        error_dialog = QErrorMessage(self)
+
+        for i, input in enumerate(inputs):
+            self.progressBar.setValue(i + 1)
+            print(input.args)
+            print(input.args.output.name)
+            if input.file_properties_changed():
+                error_dialog.showMessage("Le fichier " + input.filename + " a changé de propriétés depuis son chargement, il sera ignoré")
+                self.status_bar.showMessage("Le fichier " + input.filename + " a changé depuis son chargement", 2000)
+            else:
+                self.status_bar.showMessage("Export vers " + input.args.output.name, 2000)
+                if input.is_image:
+                    print("Convert", input.filename, "to", input.args.output.name)
+                    Rawdodendron.save_as_audio(input.input_file, input.args, False)
+                else:
+                    print("Convert", input.filename, "to", input.args.output.name)
+                    Rawdodendron.save_as_image(input.input_file, input.args, False)
+                # if required, inverse the conversion list
+                if self.invertConversion.isChecked():
+                    input.inverse()
+                # update output name in case of multiple runs
+                input.computeNextPossibleOutputName()
+        # set focus to the list after conversion
+        self.inputs_widget.setFocus()
+        # update list
+        if self.invertConversion.isChecked():
+            self.inputs_widget.updateWidgets()
+
+        # update panel
+        self.edit_panel.fullUpdateUI()
+
+        # update interface
+        self.inputs_widget.setEnabled(True)
+        self.edit_panel.setEnabled(True)
+        self.invertConversion.setEnabled(True)
+        self.processButton.setVisible(True)
+        self.progressBar.setVisible(False)
+        self.status_bar.showMessage("Conversions réalisées avec succès", 2000)
+
+
+    def setNbElements(self, nb = 0):
+        self.nbElements = nb
+        self.processButton.setEnabled(nb != 0)
+
+    def showMessage(self, msg):
+        self.status_bar.showMessage(msg, 2000)
+
+    @pyqtSlot()
+    def on_active_input(self, input, e):
+        self.edit_panel.setCurrent(input)
+
+    @pyqtSlot()
+    def on_add_input(self):
+        print("Opening files...")
+        options = QFileDialog.Options()
+        files, _ = QFileDialog.getOpenFileNames(self,"Sélection d'images et fichiers son", "",
+                            "Images (*.png *.jpg *.bmp);; Sons (*.wav *.ogg *.mp3 *.flac);; Tous les fichiers (*.*)", options=options)
+        
+        for f in files:
+            self.addInputFile(f)
+
+    def processtrigger(self, q):
+	
+        if (q.text() == "Ouvrir..."):
+            self.on_add_input()
+        if q.text() == "Quitter":
+            if self.nbElements != 0:
+                reply = QMessageBox.question(self, "Vraiment quitter?", "La liste n'est pas vide. Voulez-vous vraiment quitter?")
+                if reply == QMessageBox.Yes:
+                    sys.exit()
+            else:
+                sys.exit()                
 
             
 

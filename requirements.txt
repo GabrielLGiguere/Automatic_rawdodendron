@@ -3,3 +3,9 @@ pillow
 argparse
 appdirs
 PyQt5
+pedalboard
+moviepy
+imageio
+pyparsing
+librosa
+ffmpeg
