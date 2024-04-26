@@ -9,3 +9,6 @@ imageio
 pyparsing
 librosa
 ffmpeg
+imageio
+moviepy
+pedalboard
