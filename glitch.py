@@ -12,11 +12,16 @@ import imageio.v3 as iio
 import imageio.v2 as iio2
 import numpy as np
 import numpy.random
+import tkinter as tk
 import rawdodendron as raw
+import threading
 #vid = "/vid/test.mkv"
 from functools import partial
 from pydub import AudioSegment
 from pydub.playback import play
+import json
+jsonfile =  open("config.json", "r")
+config = json.load(jsonfile)
 
 class glitch():
     def __init__(self):
@@ -157,66 +162,142 @@ class glitch():
 
 
 
-class UI():
-    def __init__():
-        
+class UI(tk.Frame):
+    def __init__(self, master):
+        super().__init__(master)
+        self.master.title("Automatic Rawdodendron")
+        self.master.geometry(config['geometry'])
+        self.master.grid()
+        self.vid = ""
+        self.cpu_count = multiprocessing.cpu_count()
+        self.slct_cpu = tk.IntVar()
+        self.start = False
+        self.effects = tk.StringVar()
+        self.effects.set(config["effects"])
+        self.slct_effects = []
+        self.create_widgets()
+        self.gridding()
 
+    def create_widgets(self):
+        self.bttn_vid = tk.Button(self.master, 
+                                text = "Fichier" , 
+                                command = self.open_vid)
+
+        self.lbl_vid = tk.Label(self.master, 
+                                text = config["vidname"])
+
+        self.scl_cpu = tk.Scale(self.master, 
+                                label = "Nombre de CPU utilisés", 
+                                from_ = 1, 
+                                to = config["cpu_count"], 
+                                tickinterval = 1 , 
+                                variable = self.slct_cpu, 
+                                command = self.updating("slct_cpu", self.slct_cpu.get()),
+                                orient=tk.HORIZONTAL )
+
+        self.lbl_effects = tk.Label(self.master,
+                                text = "Effects")
+
+        self.lstbx_effects = tk.Listbox(self.master,
+                                listvariable = self.effects, 
+                                selectmode = tk.MULTIPLE)
+
+        self.lbl_slctd = tk.Label(self.master,
+                                text = str(self.slct_effects))
+
+        self.bttn_start = tk.Button(self.master,
+                                command = self.updating("start", True))
+
+    def gridding(self):
+        #row0
+        self.bttn_vid.grid(row = 0, column= 0)
+        self.lbl_vid.grid(row = 0, column=1, columnspan= 2)
+
+        #row1
+        self.scl_cpu.grid(row = 1, column=0, columnspan=3)
+
+        #row2
+        self.lbl_effects.grid(row = 2, column=0)
+
+        #row3
+        self.lstbx_effects.grid(row =3, column = 0, columnspan= 2)
+        self.lbl_slctd.grid(row = 3 , column=3)
+
+        #row4
+        self.bttn_start.grid(row = 4, column=0)
+
+    def open_vid(self):
+        config["vidname"] = filedialog.askopenfilename()
+        self.lbl_vid.configure(text = config["vidname"])
+        self.master.update_idletasks()
+
+
+    def updating(self, name, value):
+        config[name] = value
+        print(config[name])
+        self.master.update_idletasks()
 
 
 
 if __name__ == "__main__":
-    print("Number of cpu : ", multiprocessing.cpu_count())
-    vid = filedialog.askopenfilename()
-    totalframes=iio.improps(vid, plugin="pyav").shape[0]
-    metadate = iio.immeta(vid)
-    fps = metadate["fps"]
-    width = metadate["size"]
-    width = width[0]
-    print("width{}".format(width))
-    print(metadate)
-    print(totalframes)
-    frames = np.asarray(totalframes)
-    print(vid)
-    Glitch = glitch()
-    #multiprocessing.set_start_method('spawn')
+    root = tk.Tk()
+    config["cpu_count"] = multiprocessing.cpu_count()
+    app = UI(root)
+    app.mainloop()
+    #print("Number of cpu : ", multiprocessing.cpu_count())
+    #vid = filedialog.askopenfilename()
+    if config["start"] == True:
+        vid = config["vidname"]
+        totalframes=iio.improps(vid, plugin="pyav").shape[0]
+        metadate = iio.immeta(vid)
+        fps = metadate["fps"]
+        width = metadate["size"]
+        width = width[0]
+        print("width{}".format(width))
+        print(metadate)
+        print(totalframes)
+        frames = np.asarray(totalframes)
+        print(vid)
+        Glitch = glitch()
+        #multiprocessing.set_start_method('spawn')
 
-    Glitch.creating_dir(vid,fps, width)
-    count = Glitch.extracting()
-    with multiprocessing.Pool(8) as pool:
-        #count  = Glitch.chunking(count)
-        #frames_dir = chunking(count)
-        #sound_dir = chunking(sound_dir)
-        #vidname = chunking(vidname)
-        
-        print("multiprocessing on")
-        #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
-        result = pool.map(Glitch.transform, count)
-        pool.close()
+        Glitch.creating_dir(vid,fps, width)
+        count = Glitch.extracting()
+        with multiprocessing.Pool(8) as pool:
+            #count  = Glitch.chunking(count)
+            #frames_dir = chunking(count)
+            #sound_dir = chunking(sound_dir)
+            #vidname = chunking(vidname)
+            
+            print("multiprocessing on")
+            #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
+            result = pool.map(Glitch.transform, count)
+            pool.close()
 
-    with multiprocessing.Pool(2) as pool:
-        #count  = Glitch.chunking(count)
-        #frames_dir = chunking(count)
-        #sound_dir = chunking(sound_dir)
-        #vidname = chunking(vidname)
-        
-        print("multiprocessing on")
-        #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
-        effects = pool.map(Glitch.add_effects, count)
-        pool.close()
-    with multiprocessing.Pool(2) as pool:
-        #count  = Glitch.chunking(count)
-        #frames_dir = chunking(count)
-        #sound_dir = chunking(sound_dir)
-        #vidname = chunking(vidname)
-        
-        print("multiprocessing on")
-        #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
-        revert = pool.map(Glitch.convertBack, count)
-        pool.close()
+        with multiprocessing.Pool(2) as pool:
+            #count  = Glitch.chunking(count)
+            #frames_dir = chunking(count)
+            #sound_dir = chunking(sound_dir)
+            #vidname = chunking(vidname)
+            
+            print("multiprocessing on")
+            #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
+            effects = pool.map(Glitch.add_effects, count)
+            pool.close()
+        with multiprocessing.Pool(2) as pool:
+            #count  = Glitch.chunking(count)
+            #frames_dir = chunking(count)
+            #sound_dir = chunking(sound_dir)
+            #vidname = chunking(vidname)
+            
+            print("multiprocessing on")
+            #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
+            revert = pool.map(Glitch.convertBack, count)
+            pool.close()
 
-    
-    Glitch.save()
-        #print(result)
+        
+        Glitch.save()
+            #print(result)
 
    
 

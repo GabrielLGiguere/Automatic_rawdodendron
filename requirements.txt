@@ -2,7 +2,6 @@ pydub
 pillow
 argparse
 appdirs
-PyQt5
 pedalboard
 moviepy
 imageio

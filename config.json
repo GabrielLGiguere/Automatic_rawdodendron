@@ -1,0 +1,8 @@
+{
+    "geometry": "400x600",
+    "vidname": "",
+    "effects" : ["Bitcrush", "Chain", "Clipping", "Compressor", "Chorus", "Convolution", "Delay", "Distortion", "Gain", "GSMFullRateCompressor", "HighShelfFilter", "HighpassFilter",  "IIRFilter", "Invert", "LadderFilter", "Limiter", "Phaser", "Reverb" ],
+    "slct_effects": [],
+    "slct_cpu": 0,
+    "cpu_count": 0
+}
