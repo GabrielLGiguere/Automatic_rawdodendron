@@ -1,8 +1,9 @@
 {
     "geometry": "400x600",
     "vidname": "",
-    "effects" : ["Bitcrush", "Chain", "Clipping", "Compressor", "Chorus", "Convolution", "Delay", "Distortion", "Gain", "GSMFullRateCompressor", "HighShelfFilter", "HighpassFilter",  "IIRFilter", "Invert", "LadderFilter", "Limiter", "Phaser", "Reverb" ],
+    "effects" : ["Bitcrush", "Chain", "Clipping", "Compressor", "Chorus", "Convolution", "Delay", "Distortion", "Gain", "GSMFullRateCompressor", "HighShelfFilter", "HighpassFilter",  "IIRFilter", "Invert", "LadderFilter", "Limiter", "LowShelfFilter", "LowpassFilter", "MP3Compressor", "NoiseGate", "PeakFilter", "PitchShift", "Resample", "Phaser", "Reverb", "time_stretch" ],
     "slct_effects": [],
     "slct_cpu": 0,
-    "cpu_count": 0
+    "cpu_count": 0,
+    "start": false
 }
