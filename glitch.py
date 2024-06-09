@@ -4,7 +4,7 @@ from pyparsing import C
 import os, glob
 from pathlib import Path
 from tkinter import filedialog
-from pedalboard import Delay, Pedalboard, Chorus, Reverb, Delay, Distortion, HighpassFilter, Phaser, Bitcrush, IIRFilter, Compressor, LadderFilter, Gain, Convolution
+from pedalboard import Pedalboard, Bitcrush, Chain,  Clipping, Compressor, Chorus, Convolution, Delay, Distortion, Gain, GSMFullRateCompressor, HighShelfFilter, HighpassFilter,  IIRFilter, Invert, LadderFilter, Limiter, LowShelfFilter, LowpassFilter, MP3Compressor, NoiseGate, PeakFilter, PitchShift, Resample, Phaser, Reverb, time_stretch
 from pedalboard.io import AudioFile
 import moviepy.editor as mpy
 import multiprocessing 
@@ -15,6 +15,7 @@ import numpy.random
 import tkinter as tk
 import rawdodendron as raw
 import threading
+from typing import TypedDict
 #vid = "/vid/test.mkv"
 from functools import partial
 from pydub import AudioSegment
@@ -22,6 +23,7 @@ from pydub.playback import play
 import json
 jsonfile =  open("config.json", "r")
 config = json.load(jsonfile)
+
 
 class glitch():
     def __init__(self):
@@ -35,12 +37,41 @@ class glitch():
         self.counting = 0
         self.fps = 25
         self.width = 0
+
+        self.effects = {
+            "Bitcrush" : Bitcrush,
+            "Chain" : Chain,
+            "Clipping" : Clipping,
+            "Compressor": Compressor,
+            "Chorus": Chorus,
+            "Delay":Delay,
+            "Distortion":Distortion,
+            "Gain":Gain,
+            "GSMFullRateCompressor":GSMFullRateCompressor,
+            "HighShelfFilter":HighShelfFilter,
+            "HighpassFilter":HighpassFilter,
+            "IIRFilter":HighpassFilter,
+            "Invert":Invert,
+            "LadderFilter":LadderFilter,
+            "Limiter":Limiter,
+            "LowShelfFilter":LowShelfFilter,
+            "LowpassFilter":LowpassFilter,
+            "MP3Compressor":MP3Compressor,
+            "NoiseGate":NoiseGate,
+            "PeakFilter":PeakFilter,
+            "PitchShift":PitchShift,
+            "Resample":Resample,
+            "Phaser":Phaser,
+            "Reverb":Reverb,
+        }
+
+
     def creating_dir(self,vid, fps, width):
         self.vidname = os.path.basename(vid)[:-4]
         self.fps = fps
         self.width = width
         self.dir = os.getcwd().replace('\\', '/')
-        self.current_dir = "{}/{}2".format(self.dir, self.vidname)
+        self.current_dir = "{}/{}1".format(self.dir, self.vidname)
         d = Path(self.current_dir)
         d.mkdir(exist_ok=True)
         print(self.current_dir)
@@ -59,10 +90,10 @@ class glitch():
 
         return self.vidname, self.frames_dir, self.sound_dir, self.framesC_dir, self.mods_dir
 
-    def extracting(self):
+    def extracting(self, vidx):
         #fhand = open(fname)
         count = np.asarray([])
-        for idx, frame in enumerate(iio.imiter(vid)):
+        for idx, frame in enumerate(iio.imiter(vidx)):
             print(idx)
             path = "{}/{}_frame".format(self.frames_dir, self.vidname)
             iio.imwrite(f"{path}{idx:d}.jpg", frame)
@@ -96,31 +127,25 @@ class glitch():
             print("x = {}".format(x))
             x = x[:-2]
             x= int(x)
+            path = "{}/{}_sound{}.wav".format(self.sound_dir, self.vidname, x)
+            ffcts = []
             #sine = self.map_range(math.sin(int(x)+ math.sin(int(x))), -1, 1, 0,  32)
-            board = Pedalboard([
-                                Phaser(rate_hz = 1, depth = 0.8),
-                                Reverb()
-                                ])
-            path = "{}/{}_mod{}.wav".format(self.mods_dir,self.vidname,x)
+            for y in config["slct_effects"]:
+                ffcts.append(self.effects[y]())
+            print(ffcts)
+            
             check_file = os.path.isfile(path)
             infile = "{}/{}_sound{}.wav".format(self.sound_dir, self.vidname, x)
             outfile = "{}/{}_mod{}.wav".format(self.mods_dir,self.vidname,x)
             #outfile_temp = "{}/{}_temp{}.wav".format(self.mods_dir,self.vid_name,x)
-            if check_file != True:
-                with AudioFile(infile) as f:
-                    # Open an audio file to write to:
-                    sample_rate = 44100
-                    with AudioFile(outfile, 'w', sample_rate, f.num_channels) as o:
-                        # Read one second of audio at a time, until the file is empty:
-                        while f.tell() < f.frames:
-                            chunk = f.read(f.samplerate)
-                            
-
-                            # Run the audio through our pedalboard:
-                            effected = board(chunk, sample_rate, reset=False)
-                            #print(effected)
-                            # Write the output to our output file:
-                            o.write(effected)
+           
+            samplerate = 44100.0
+            with AudioFile(infile).resampled_to(samplerate) as f:
+                audio = f.read(f.frames)   
+            board = Pedalboard(ffcts)
+            effected = board(audio, samplerate)
+            with AudioFile(outfile, 'w', samplerate, effected.shape[0]) as f:
+                    f.write(effected)
         
 
     def convertBack(self, count):
@@ -174,14 +199,15 @@ class UI(tk.Frame):
         self.start = False
         self.effects = tk.StringVar()
         self.effects.set(config["effects"])
-        self.slct_effects = []
+        self.slct_effects = ""
         self.create_widgets()
         self.gridding()
+        self.binding()
 
     def create_widgets(self):
         self.bttn_vid = tk.Button(self.master, 
                                 text = "Fichier" , 
-                                command = self.open_vid)
+                                )
 
         self.lbl_vid = tk.Label(self.master, 
                                 text = config["vidname"])
@@ -206,7 +232,8 @@ class UI(tk.Frame):
                                 text = str(self.slct_effects))
 
         self.bttn_start = tk.Button(self.master,
-                                command = self.updating("start", True))
+                                command = self.starting(),
+                                text = "Start")
 
     def gridding(self):
         #row0
@@ -226,78 +253,102 @@ class UI(tk.Frame):
         #row4
         self.bttn_start.grid(row = 4, column=0)
 
+    
+    def binding(self):
+        self.bttn_vid.bind('<Button-1>', lambda evt: self.open_vid())
+        self.scl_cpu.bind('<ButtonRelease-1>', lambda evt: self.updating("slct_cpu", self.slct_cpu.get()))
+        self.lstbx_effects.bind('<<ListboxSelect>>', lambda evt: self.effect_slctd())
+        self.bttn_start.bind('<Button-1>', lambda evt: self.starting())
+    
+    
     def open_vid(self):
         config["vidname"] = filedialog.askopenfilename()
         self.lbl_vid.configure(text = config["vidname"])
         self.master.update_idletasks()
+        print(self.lbl_vid.cget("text"))
 
+    def effect_slctd(self):
+        config["slct_effects"].clear()
+        for x in self.lstbx_effects.curselection():
+            config["slct_effects"].append(config["effects"][x])
+        self.slct_effects = str(config["slct_effects"])
+        self.slct_effects = self.slct_effects.replace(", ", "\n")
+        self.slct_effects = self.slct_effects.strip("[]")
+        self.lbl_slctd.configure(text = self.slct_effects)
+        print(self.slct_effects)
 
     def updating(self, name, value):
         config[name] = value
         print(config[name])
         self.master.update_idletasks()
 
+    def starting(self):
+        print("inside")
+        if self.lbl_vid.cget("text") != "":
+            print("starting")
+            totalframes=iio.improps(self.lbl_vid.cget("text"), plugin="pyav").shape[0]
+            metadate = iio.immeta(self.lbl_vid.cget("text"))
+            fps = metadate["fps"]
+            width = metadate["size"]
+            width = width[0]
+            print("width{}".format(width))
+            print(metadate)
+            print(totalframes)
+            frames = np.asarray(totalframes)
+            print(self.lbl_vid.cget("text"))
+            Glitch = glitch()
+            #multiprocessing.set_start_method('spawn')
+
+            Glitch.creating_dir(self.lbl_vid.cget("text"),fps, width)
+            count = Glitch.extracting(self.lbl_vid.cget("text"))
+            with multiprocessing.Pool(config["slct_cpu"]) as pool:
+                #count  = Glitch.chunking(count)
+                #frames_dir = chunking(count)
+                #sound_dir = chunking(sound_dir)
+                #vidname = chunking(vidname)
+                
+                print("multiprocessing on")
+                #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
+                result = pool.map(Glitch.transform, count)
+                pool.close()
+
+            with multiprocessing.Pool(config["slct_cpu"]) as pool:
+                #count  = Glitch.chunking(count)
+                #frames_dir = chunking(count)
+                #sound_dir = chunking(sound_dir)
+                #vidname = chunking(vidname)
+                
+                print("multiprocessing on")
+                #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
+                effcts = pool.map(Glitch.add_effects, count)
+                pool.close()
+            with multiprocessing.Pool(config["slct_cpu"]) as pool:
+                #count  = Glitch.chunking(count)
+                #frames_dir = chunking(count)
+                #sound_dir = chunking(sound_dir)
+                #vidname = chunking(vidname)
+                
+                print("multiprocessing on")
+                #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
+                revert = pool.map(Glitch.convertBack, count)
+                pool.close()
+
+            
+            Glitch.save()
+                #print(result)
+
 
 
 if __name__ == "__main__":
+    print(config)
     root = tk.Tk()
     config["cpu_count"] = multiprocessing.cpu_count()
+
     app = UI(root)
     app.mainloop()
     #print("Number of cpu : ", multiprocessing.cpu_count())
     #vid = filedialog.askopenfilename()
-    if config["start"] == True:
-        vid = config["vidname"]
-        totalframes=iio.improps(vid, plugin="pyav").shape[0]
-        metadate = iio.immeta(vid)
-        fps = metadate["fps"]
-        width = metadate["size"]
-        width = width[0]
-        print("width{}".format(width))
-        print(metadate)
-        print(totalframes)
-        frames = np.asarray(totalframes)
-        print(vid)
-        Glitch = glitch()
-        #multiprocessing.set_start_method('spawn')
-
-        Glitch.creating_dir(vid,fps, width)
-        count = Glitch.extracting()
-        with multiprocessing.Pool(8) as pool:
-            #count  = Glitch.chunking(count)
-            #frames_dir = chunking(count)
-            #sound_dir = chunking(sound_dir)
-            #vidname = chunking(vidname)
-            
-            print("multiprocessing on")
-            #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
-            result = pool.map(Glitch.transform, count)
-            pool.close()
-
-        with multiprocessing.Pool(2) as pool:
-            #count  = Glitch.chunking(count)
-            #frames_dir = chunking(count)
-            #sound_dir = chunking(sound_dir)
-            #vidname = chunking(vidname)
-            
-            print("multiprocessing on")
-            #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
-            effects = pool.map(Glitch.add_effects, count)
-            pool.close()
-        with multiprocessing.Pool(2) as pool:
-            #count  = Glitch.chunking(count)
-            #frames_dir = chunking(count)
-            #sound_dir = chunking(sound_dir)
-            #vidname = chunking(vidname)
-            
-            print("multiprocessing on")
-            #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
-            revert = pool.map(Glitch.convertBack, count)
-            pool.close()
 
         
-        Glitch.save()
-            #print(result)
-
    
 
