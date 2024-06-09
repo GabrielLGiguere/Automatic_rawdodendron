@@ -1,38 +1,15 @@
 {
-    "geometry": "400x600",
+    "geometry": "600x600",
     "vidname": "",
     "effects" : ["Bitcrush", "Chain", "Clipping", "Compressor", "Chorus", "Convolution", "Delay", "Distortion", "Gain", "GSMFullRateCompressor", "HighShelfFilter", "HighpassFilter",  "IIRFilter", "Invert", "LadderFilter", "Limiter", "LowShelfFilter", "LowpassFilter", "MP3Compressor", "NoiseGate", "PeakFilter", "PitchShift", "Resample", "Phaser", "Reverb", "time_stretch" ],
     "slct_effects": [],
     "slct_cpu": 1,
     "cpu_count": 0,
     "start": false,
+    "out_name": "",
+    "padx": 8,
+    "pady": 10
 
-    "effects" :[
-    "Bitcrush",
-    "Chain" ,
-    "Clipping",
-    "Compressor",
-    "Chorus",
-    "Convolution",
-    "Delay",
-    "Distortion",
-    "Gain",
-    "GSMFullRateCompressor",
-    "HighShelfFilter",
-    "HighpassFilter",
-    "IIRFilter",
-    "Invert",
-    "LadderFilter",
-    "Limiter",
-    "LowShelfFilter",
-    "LowpassFilter",
-    "MP3Compressor",
-    "NoiseGate",
-    "PeakFilter",
-    "PitchShift",
-    "Resample",
-    "Phaser",
-    "Reverb"
-    ]
+
 
 }

@@ -114,12 +114,9 @@ class glitch():
             x = x[:-2]
             x= int(x)
             print("X=={}".format(x))
-            #self.outputs[x] = raw.initialize(input = '{}/{}_frame{}.jpg'.format(self.self.frames_dir, self.vid_name, x), output = '{}/{}_sound{}.wav'.format(self.self.sound_dir, self.vid_name,x), self.vidname = self.vid_name)
-            #print("outputs: {}".format(outputs[x]))
+
             os.system('python rawdodendron.py -i {}/{}_frame{}.jpg  -o {}/{}_sound{}.wav -w {} --ignore-history'.format(self.frames_dir, self.vidname, x, self.sound_dir, self.vidname,x, self.width))
-        #return outputs    
-#            x = str(i)
-           # x = x[:-1]
+
     def add_effects(self, count):
         self.entries = os.listdir(self.sound_dir)
         for i in np.nditer(count):
@@ -159,7 +156,7 @@ class glitch():
 
     def save(self):
 
-        with iio2.get_writer('test_{}.mp4'.format(self.vidname), fps = self.fps) as writer:
+        with iio2.get_writer('{}.mp4'.format(config["out_name"]), fps = self.fps) as writer:
             for x in range(self.counting):
                 complete_path = '{}/{}_frameC{}.png'.format(self.framesC_dir,self.vidname,x)
                 image = iio.imread(complete_path)
@@ -198,6 +195,7 @@ class UI(tk.Frame):
         self.slct_cpu = tk.IntVar()
         self.start = False
         self.effects = tk.StringVar()
+        self.out_name = tk.StringVar()
         self.effects.set(config["effects"])
         self.slct_effects = ""
         self.create_widgets()
@@ -235,23 +233,33 @@ class UI(tk.Frame):
                                 command = self.starting(),
                                 text = "Start")
 
+        self.ntry_name = tk.Entry(self.master,textvariable=self.out_name)
+
+        self.lbl_out = tk.Label(self.master, text = "Nom du fichier de sauvegarde")
+
     def gridding(self):
         #row0
-        self.bttn_vid.grid(row = 0, column= 0)
-        self.lbl_vid.grid(row = 0, column=1, columnspan= 2)
+        self.bttn_vid.grid(row = 0, column= 0,sticky = 'w',padx = config["padx"], pady = config["pady"])
+        self.lbl_vid.grid(row = 0, column=1,sticky = 'w',columnspan= 2,padx = config["padx"], pady = config["pady"])
 
         #row1
-        self.scl_cpu.grid(row = 1, column=0, columnspan=3)
+        self.lbl_out.grid(row=1, column = 0, sticky = 'w',padx = config["padx"], pady = config["pady"])
 
         #row2
-        self.lbl_effects.grid(row = 2, column=0)
-
+        self.ntry_name.grid(row = 2, column = 0, sticky = 'w',padx = config["padx"], pady = config["pady"])
+        
         #row3
-        self.lstbx_effects.grid(row =3, column = 0, columnspan= 2)
-        self.lbl_slctd.grid(row = 3 , column=3)
+        self.scl_cpu.grid(row = 3, column=0, columnspan=3 ,sticky = 'w',padx = config["padx"], pady = config["pady"])
 
         #row4
-        self.bttn_start.grid(row = 4, column=0)
+        self.lbl_effects.grid(row = 4, column=0 ,sticky = 'w',padx = config["padx"], pady = config["pady"])
+
+        #row5
+        self.lstbx_effects.grid(row =5, column = 0, columnspan= 2,padx = config["padx"], pady = config["pady"])
+        self.lbl_slctd.grid(row = 5 , column=2,padx = config["padx"], pady = config["pady"])
+
+        #row6
+        self.bttn_start.grid(row = 6, column=0 ,sticky = 'n', columnspan=2,padx = config["padx"], pady = config["pady"])
 
     
     def binding(self):
@@ -283,6 +291,11 @@ class UI(tk.Frame):
         self.master.update_idletasks()
 
     def starting(self):
+        if self.out_name.get() != None:
+            config["out_name"] = self.out_name.get()
+
+        else:
+            config["out_name"] = "untitled"
         print("inside")
         if self.lbl_vid.cget("text") != "":
             print("starting")
