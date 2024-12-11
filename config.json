@@ -1,15 +1,76 @@
 {
     "geometry": "600x600",
     "vidname": "",
-    "effects" : ["Bitcrush", "Chain", "Clipping", "Compressor", "Chorus", "Convolution", "Delay", "Distortion", "Gain", "GSMFullRateCompressor", "HighShelfFilter", "HighpassFilter",  "IIRFilter", "Invert", "LadderFilter", "Limiter", "LowShelfFilter", "LowpassFilter", "MP3Compressor", "NoiseGate", "PeakFilter", "PitchShift", "Resample", "Phaser", "Reverb", "time_stretch" ],
+    "effects" : ["Bitcrush", "Clipping", "Compressor", "Chorus", "Convolution", "Delay", "Distortion", "Gain", "GSMFullRateCompressor", "HighShelfFilter", "HighpassFilter",  "IIRFilter", "Invert", "LadderFilter", "Limiter", "LowShelfFilter", "LowpassFilter", "MP3Compressor", "NoiseGate", "PeakFilter", "PitchShift", "Resample", "Phaser", "Reverb", "time_stretch" ],
     "slct_effects": [],
     "slct_cpu": 1,
     "cpu_count": 0,
     "start": false,
     "out_name": "",
     "padx": 8,
-    "pady": 10
+    "pady": 10,
+    "Bitcrush" : {
+        "rate_hz": 1.0, 
+        "depth": 0.25, 
+        "centre_delay_ms": 7.0, 
+        "feedback": 0.0, 
+        "mix": 0.5,
+        "info": "rate netweem 0 Hz and 100 Hz"
+    },
 
+    "Chorus": {
+        "rate_hz": 1.0, 
+        "depth":0.25, 
+        "centre_delay_ms": 7.0, 
+        "feedback": 0.0, 
+        "mix": 0.5,
+        "info": "rate between 0 Hz and 100 Hz"
+    },
+    "Clipping": {
+        "threshold_db": -6.0,
+        "info": "A distortion plugin that adds hard distortion to the signal by clipping the signal at the provided threshold (in decibels)."
+    },
 
+    "Compressor": {
+        "threshold_db": 0, 
+        "ratio": 1, 
+        "attack_ms": 1.0, 
+        "release_ms": 100,
+        "info": "A dynamic range compressor, used to reduce the volume of loud sounds and “compress” the loudness of the signal."
+    },
+
+    "Delay": {
+        "delay_seconds": 0.5, 
+        "feedback": 0.0, 
+        "mix": 0.5,
+        "info": "None"
+    },
+
+    "Distorsion": {
+        "drive_db": 25,
+        "info": "This plugin produces a signal that is roughly equivalent to running: def distortion(x): return tanh(x * db_to_gain(drive_db))"
+    },
+
+    "GSMFullRateCompressor":{
+        "quality": "Quality.WindowedSinc",
+        "info": "ZeroOrderHold, Linear, CatmullRom, Lagrange, WindowedSinc"
+    },
+
+    "Gain": {
+        "gain_db": 1.0,
+        "info": "A gain plugin that increases or decreases the volume of a signal by amplifying or attenuating it by the provided value (in decibels). No distortion or other effects are applied."
+    },
+
+    "HighShelfFilter": {
+        "cutoff_frequency_hz": 440, 
+        "gain_db": 0.0, 
+        "q": 0.7071067690849304,
+        "info": "A high shelf filter plugin with variable Q and gain, as would be used in an equalizer. Frequencies above the cutoff frequency will be boosted (or cut) by the provided gain (in decibels)"
+    },
+
+    "HighpassFilter": {
+        "cutoff_frequency_hz": 50,
+        "info": "A high-pass filter is an equalization tool that removes all frequencies below a set point"
+    }
 
 }

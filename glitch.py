@@ -4,6 +4,7 @@ from pyparsing import C
 import os, glob
 from pathlib import Path
 from tkinter import filedialog
+import pedalboard
 from pedalboard import Pedalboard, Bitcrush, Chain,  Clipping, Compressor, Chorus, Convolution, Delay, Distortion, Gain, GSMFullRateCompressor, HighShelfFilter, HighpassFilter,  IIRFilter, Invert, LadderFilter, Limiter, LowShelfFilter, LowpassFilter, MP3Compressor, NoiseGate, PeakFilter, PitchShift, Resample, Phaser, Reverb, time_stretch
 from pedalboard.io import AudioFile
 import moviepy.editor as mpy
@@ -21,7 +22,8 @@ from functools import partial
 from pydub import AudioSegment
 from pydub.playback import play
 import json
-jsonfile =  open("config.json", "r")
+import inspect
+jsonfile =  open("config.json", "r", encoding='utf-8')
 config = json.load(jsonfile)
 
 
@@ -37,16 +39,16 @@ class glitch():
         self.counting = 0
         self.fps = 25
         self.width = 0
-
+        self.slc_effects = []
         self.effects = {
-            "Bitcrush" : Bitcrush,
-            "Chain" : Chain,
-            "Clipping" : Clipping,
-            "Compressor": Compressor,
-            "Chorus": Chorus,
-            "Delay":Delay,
-            "Distortion":Distortion,
-            "Gain":Gain,
+            "Bitcrush" : pedalboard.Bitcrush,
+            "Chain" : pedalboard.Chain,
+            "Clipping" : pedalboard.Clipping,
+            "Compressor": pedalboard.Compressor,
+            "Chorus": pedalboard.Chorus,
+            "Delay":pedalboard.Delay,
+            "Distortion":pedalboard.Distortion,
+            "Gain":pedalboard.Gain,
             "GSMFullRateCompressor":GSMFullRateCompressor,
             "HighShelfFilter":HighShelfFilter,
             "HighpassFilter":HighpassFilter,
@@ -66,12 +68,15 @@ class glitch():
         }
 
 
-    def creating_dir(self,vid, fps, width):
+
+
+    def creating_dir(self,vid, fps, width, slct_e):
         self.vidname = os.path.basename(vid)[:-4]
         self.fps = fps
         self.width = width
         self.dir = os.getcwd().replace('\\', '/')
-        self.current_dir = "{}/{}1".format(self.dir, self.vidname)
+        self.current_dir = "{}/VIDEOS/{}1".format(self.dir, self.vidname)
+        self.slc_effects = slct_e
         d = Path(self.current_dir)
         d.mkdir(exist_ok=True)
         print(self.current_dir)
@@ -95,8 +100,11 @@ class glitch():
         count = np.asarray([])
         for idx, frame in enumerate(iio.imiter(vidx)):
             print(idx)
-            path = "{}/{}_frame".format(self.frames_dir, self.vidname)
-            iio.imwrite(f"{path}{idx:d}.jpg", frame)
+            fpath = "{}/{}_frame".format(self.frames_dir, self.vidname)
+            dpath = f"{fpath}{idx:d}.jpg"
+            print(os.path.isfile(dpath))
+            if os.path.isfile(dpath)!= True:
+                iio.imwrite(f"{fpath}{idx:d}.jpg", frame)
             count = np.append(count, idx)
             #print(self.count)
         #self.counting = np.array_split(self.count, 4)
@@ -115,7 +123,9 @@ class glitch():
             x= int(x)
             print("X=={}".format(x))
 
-            os.system('python rawdodendron.py -i {}/{}_frame{}.jpg  -o {}/{}_sound{}.wav -w {} --ignore-history'.format(self.frames_dir, self.vidname, x, self.sound_dir, self.vidname,x, self.width))
+            fpath = "{}/{}_sound{}.wav".format(self.frames_dir, self.vidname, x)
+            if os.path.isfile(fpath) != True:
+                os.system('python rawdodendron.py -i {}/{}_frame{}.jpg  -o {}/{}_sound{}.wav -w {} --ignore-history'.format(self.frames_dir, self.vidname, x, self.sound_dir, self.vidname,x, self.width))
 
     def add_effects(self, count):
         self.entries = os.listdir(self.sound_dir)
@@ -127,7 +137,7 @@ class glitch():
             path = "{}/{}_sound{}.wav".format(self.sound_dir, self.vidname, x)
             ffcts = []
             #sine = self.map_range(math.sin(int(x)+ math.sin(int(x))), -1, 1, 0,  32)
-            for y in config["slct_effects"]:
+            for y in self.slc_effects:
                 ffcts.append(self.effects[y]())
             print(ffcts)
             
@@ -143,7 +153,7 @@ class glitch():
             effected = board(audio, samplerate)
             with AudioFile(outfile, 'w', samplerate, effected.shape[0]) as f:
                     f.write(effected)
-        
+                    
 
     def convertBack(self, count):
         for i in np.nditer(count):
@@ -156,19 +166,11 @@ class glitch():
 
     def save(self):
 
-        with iio2.get_writer('{}.mp4'.format(config["out_name"]), fps = self.fps) as writer:
+        with iio2.get_writer('{}/{}.mp4'.format(self.current_dir, config["out_name"]), fps = self.fps) as writer:
             for x in range(self.counting):
                 complete_path = '{}/{}_frameC{}.png'.format(self.framesC_dir,self.vidname,x)
                 image = iio.imread(complete_path)
                 writer.append_data(image)
-
-    def save_rand(self,count):
-        count = np.random.shuffle(count)
-        with iio2.get_writer('test_{}.mp4'.format(self.vidname), fps = self.fps) as writer:
-            for x in np.nditer(count):
-                image = iio.imread(count[x])
-                writer.append_data(image)
-
 
 
     def map_range(x, in_min, in_max, out_min, out_max):
@@ -198,6 +200,33 @@ class UI(tk.Frame):
         self.out_name = tk.StringVar()
         self.effects.set(config["effects"])
         self.slct_effects = ""
+
+        self.ffects = {
+            "Bitcrush" : pedalboard.Bitcrush,
+            "Chain" : pedalboard.Chain,
+            "Clipping" : pedalboard.Clipping,
+            "Compressor": pedalboard.Compressor,
+            "Chorus": pedalboard.Chorus,
+            "Delay":pedalboard.Delay,
+            "Distortion":pedalboard.Distortion,
+            "Gain":pedalboard.Gain,
+            "GSMFullRateCompressor":pedalboard.GSMFullRateCompressor,
+            "HighShelfFilter":pedalboard.HighShelfFilter,
+            "HighpassFilter":pedalboard.HighpassFilter,
+            "IIRFilter":pedalboard.HighpassFilter,
+            "Invert":pedalboard.Invert,
+            "LadderFilter":pedalboard.LadderFilter,
+            "Limiter":pedalboard.Limiter,
+            "LowShelfFilter":pedalboard.LowShelfFilter,
+            "LowpassFilter":pedalboard.LowpassFilter,
+            "MP3Compressor":pedalboard.MP3Compressor,
+            "NoiseGate":pedalboard.NoiseGate,
+            "PeakFilter":pedalboard.PeakFilter,
+            "PitchShift":pedalboard.PitchShift,
+            "Resample":pedalboard.Resample,
+            "Phaser":pedalboard.Phaser,
+            "Reverb":pedalboard.Reverb,
+        }
         self.create_widgets()
         self.gridding()
         self.binding()
@@ -268,22 +297,41 @@ class UI(tk.Frame):
         self.lstbx_effects.bind('<<ListboxSelect>>', lambda evt: self.effect_slctd())
         self.bttn_start.bind('<Button-1>', lambda evt: self.starting())
     
-    
+    def params_change(self, param, value, index):
+        name = "lbl_{}".format(param)
+        self.name = tk.Label(self,text = param)
+        name2 = "ntry_{}".format(param)
+        self.name2 = tk.Entry(self, )
     def open_vid(self):
         config["vidname"] = filedialog.askopenfilename()
         self.lbl_vid.configure(text = config["vidname"])
         self.master.update_idletasks()
         print(self.lbl_vid.cget("text"))
-
+    def vdir(self, obj):
+        return [x for x in dir(obj) if not x.startswith('__')]
     def effect_slctd(self):
         config["slct_effects"].clear()
         for x in self.lstbx_effects.curselection():
+            print(config["effects"][x])
             config["slct_effects"].append(config["effects"][x])
+            reverb = pedalboard.Reverb()
+            #print(reverb)
+            y = self.ffects[config["effects"][x]]()
+            for att in dir(y):
+               if inspect.ismethod(att) == False:
+                j= getattr(y,att)
+                for v in config[config["effects"][x]]:
+                    if v == att:
+                        pb = y.__setattr__(att,1.5)
+                        print(pb)     
+                        print(y)          
+               
+        #print(config["slct_effects"])
         self.slct_effects = str(config["slct_effects"])
         self.slct_effects = self.slct_effects.replace(", ", "\n")
         self.slct_effects = self.slct_effects.strip("[]")
         self.lbl_slctd.configure(text = self.slct_effects)
-        print(self.slct_effects)
+        #print(self.slct_effects)
 
     def updating(self, name, value):
         config[name] = value
@@ -312,7 +360,7 @@ class UI(tk.Frame):
             Glitch = glitch()
             #multiprocessing.set_start_method('spawn')
 
-            Glitch.creating_dir(self.lbl_vid.cget("text"),fps, width)
+            Glitch.creating_dir(self.lbl_vid.cget("text"),fps, width, config["slct_effects"])
             count = Glitch.extracting(self.lbl_vid.cget("text"))
             with multiprocessing.Pool(config["slct_cpu"]) as pool:
                 #count  = Glitch.chunking(count)
