@@ -112,60 +112,46 @@ class glitch():
         self.counting = int(idx)
         return count
 
-    def transform(self, count):
-        outputs = []
-        for i in np.nditer(count):
-            #print(len(count))
-            print("this is i:{}".format(i))
-            x = str(i)
-            print("x = {}".format(x))
-            x = x[:-2]
-            x= int(x)
-            print("X=={}".format(x))
+    def transform(self, x):
+        fpath = "{}/{}_sound{}.wav".format(self.frames_dir, self.vidname, x)
+        if os.path.isfile(fpath) != True:
+            os.system('python rawdodendron.py -i {}/{}_frame{}.jpg  -o {}/{}_sound{}.wav -w {} --ignore-history'.format(self.frames_dir, self.vidname, x, self.sound_dir, self.vidname,x, self.width))
 
-            fpath = "{}/{}_sound{}.wav".format(self.frames_dir, self.vidname, x)
-            if os.path.isfile(fpath) != True:
-                os.system('python rawdodendron.py -i {}/{}_frame{}.jpg  -o {}/{}_sound{}.wav -w {} --ignore-history'.format(self.frames_dir, self.vidname, x, self.sound_dir, self.vidname,x, self.width))
-
-    def add_effects(self, count):
+    def add_effects(self, x):
         self.entries = os.listdir(self.sound_dir)
-        for i in np.nditer(count):
-            x = str(i)
-            print("x = {}".format(x))
-            x = x[:-2]
-            x= int(x)
-            path = "{}/{}_sound{}.wav".format(self.sound_dir, self.vidname, x)
-            ffcts = []
-            #sine = self.map_range(math.sin(int(x)+ math.sin(int(x))), -1, 1, 0,  32)
-            for y in self.slc_effects:
-                ffcts.append(self.effects[y]())
-            print(ffcts)
-            
-            check_file = os.path.isfile(path)
-            infile = "{}/{}_sound{}.wav".format(self.sound_dir, self.vidname, x)
-            outfile = "{}/{}_mod{}.wav".format(self.mods_dir,self.vidname,x)
-            #outfile_temp = "{}/{}_temp{}.wav".format(self.mods_dir,self.vid_name,x)
-           
-            samplerate = 44100.0
-            with AudioFile(infile).resampled_to(samplerate) as f:
-                audio = f.read(f.frames)   
-            board = Pedalboard(ffcts)
-            effected = board(audio, samplerate)
-            with AudioFile(outfile, 'w', samplerate, effected.shape[0]) as f:
-                    f.write(effected)
+        path = "{}/{}_sound{}.wav".format(self.sound_dir, self.vidname, x)
+        ffcts = []
+        #sine = self.map_range(math.sin(int(x)+ math.sin(int(x))), -1, 1, 0,  32)
+        for y in self.slc_effects:
+            ffcts.append(self.effects[y]())
+        print(ffcts)
+        
+        check_file = os.path.isfile(path)
+        infile = "{}/{}_sound{}.wav".format(self.sound_dir, self.vidname, x)
+        outfile = "{}/{}_mod{}.wav".format(self.mods_dir,self.vidname,x)
+        #outfile_temp = "{}/{}_temp{}.wav".format(self.mods_dir,self.vid_name,x)
+        
+        samplerate = 44100.0
+        with AudioFile(infile).resampled_to(samplerate) as f:
+            audio = f.read(f.frames)   
+        board = Pedalboard(ffcts)
+        effected = board(audio, samplerate)
+        with AudioFile(outfile, 'w', samplerate, effected.shape[0]) as f:
+                f.write(effected)
                     
-
-    def convertBack(self, count):
+    def converts(self, function,count):
         for i in np.nditer(count):
             x = str(i)
             x = x[:-2]
             x= int(x)
-            path = "{}/{}_frameC{}.jpg".format(self.framesC_dir, self.vidname,x)
-            check_file = os.path.isfile(path)
-            os.system('python rawdodendron.py -i {}/{}_mod{}.wav  -o {}/{}_frameC{}.png -w {} --ignore-history'.format(self.mods_dir,self.vidname,x, self.framesC_dir, self.vidname, x, self.width))
+            function(x)
+
+    def convertBack(self, x):
+        path = "{}/{}_frameC{}.jpg".format(self.framesC_dir, self.vidname,x)
+        check_file = os.path.isfile(path)
+        os.system('python rawdodendron.py -i {}/{}_mod{}.wav  -o {}/{}_frameC{}.png -w {} --ignore-history'.format(self.mods_dir,self.vidname,x, self.framesC_dir, self.vidname, x, self.width))
 
     def save(self):
-
         with iio2.get_writer('{}/{}.mp4'.format(self.current_dir, config["out_name"]), fps = self.fps) as writer:
             for x in range(self.counting):
                 complete_path = '{}/{}_frameC{}.png'.format(self.framesC_dir,self.vidname,x)
@@ -193,6 +179,9 @@ class UI(tk.Frame):
         self.master.geometry(config['geometry'])
         self.master.grid()
         self.vid = ""
+        self.count_done = False
+        self.count = 0
+        self.Glitch = None
         self.cpu_count = multiprocessing.cpu_count()
         self.slct_cpu = tk.IntVar()
         self.start = False
@@ -259,8 +248,12 @@ class UI(tk.Frame):
                                 text = str(self.slct_effects))
 
         self.bttn_start = tk.Button(self.master,
-                                command = self.starting(),
+                               
                                 text = "Start")
+        
+        self.bttn_test = tk.Button(self.master,
+                                
+                                text = "test")
 
         self.ntry_name = tk.Entry(self.master,textvariable=self.out_name)
 
@@ -289,14 +282,14 @@ class UI(tk.Frame):
 
         #row6
         self.bttn_start.grid(row = 6, column=0 ,sticky = 'n', columnspan=2,padx = config["padx"], pady = config["pady"])
-
+        self.bttn_test.grid(row = 7, column=0 ,sticky = 'n', columnspan=2,padx = config["padx"], pady = config["pady"])
     
     def binding(self):
         self.bttn_vid.bind('<Button-1>', lambda evt: self.open_vid())
         self.scl_cpu.bind('<ButtonRelease-1>', lambda evt: self.updating("slct_cpu", self.slct_cpu.get()))
         self.lstbx_effects.bind('<<ListboxSelect>>', lambda evt: self.effect_slctd())
         self.bttn_start.bind('<Button-1>', lambda evt: self.starting())
-    
+        self.bttn_test.bind('<Button-1>', lambda evt: self.test())
     def params_change(self, param, value, index):
         name = "lbl_{}".format(param)
         self.name = tk.Label(self,text = param)
@@ -338,7 +331,7 @@ class UI(tk.Frame):
         print(config[name])
         self.master.update_idletasks()
 
-    def starting(self):
+    def get_extract(self):
         if self.out_name.get() != None:
             config["out_name"] = self.out_name.get()
 
@@ -357,46 +350,47 @@ class UI(tk.Frame):
             print(totalframes)
             frames = np.asarray(totalframes)
             print(self.lbl_vid.cget("text"))
-            Glitch = glitch()
+            self.Glitch = glitch()
             #multiprocessing.set_start_method('spawn')
 
-            Glitch.creating_dir(self.lbl_vid.cget("text"),fps, width, config["slct_effects"])
-            count = Glitch.extracting(self.lbl_vid.cget("text"))
-            with multiprocessing.Pool(config["slct_cpu"]) as pool:
-                #count  = Glitch.chunking(count)
-                #frames_dir = chunking(count)
-                #sound_dir = chunking(sound_dir)
-                #vidname = chunking(vidname)
-                
-                print("multiprocessing on")
-                #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
-                result = pool.map(Glitch.transform, count)
-                pool.close()
+            self.Glitch.creating_dir(self.lbl_vid.cget("text"),fps, width, config["slct_effects"])
+            count = self.Glitch.extracting(self.lbl_vid.cget("text"))
+            return count
+    def test(self):
+        if self.count_done != True:
+            count = self.get_extract()
+            self.count_done = True
+            self.count = count
+        else:
+            count = self.count
+            #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
+        result = self.Glitch.transform(10)
+        effcts = self.Glitch.add_effects(10)
+        revert = self.Glitch.convertBack(10)
 
-            with multiprocessing.Pool(config["slct_cpu"]) as pool:
-                #count  = Glitch.chunking(count)
-                #frames_dir = chunking(count)
-                #sound_dir = chunking(sound_dir)
-                #vidname = chunking(vidname)
-                
-                print("multiprocessing on")
-                #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
-                effcts = pool.map(Glitch.add_effects, count)
-                pool.close()
-            with multiprocessing.Pool(config["slct_cpu"]) as pool:
-                #count  = Glitch.chunking(count)
-                #frames_dir = chunking(count)
-                #sound_dir = chunking(sound_dir)
-                #vidname = chunking(vidname)
-                
-                print("multiprocessing on")
-                #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
-                revert = pool.map(Glitch.convertBack, count)
-                pool.close()
+    def starting(self):
+        if self.count_done != True:
+            count = self.get_extract()
+            self.count_done = True
+            self.count = count
+        else:
+            count = self.count
 
+
+        with multiprocessing.Pool(config["slct_cpu"]) as pool:
+            #count  = Glitch.chunking(count)
+            #frames_dir = chunking(count)
+            #sound_dir = chunking(sound_dir)
+            #vidname = chunking(vidname)
             
-            Glitch.save()
-                #print(result)
+            print("multiprocessing on")
+            #result_args = partial(Glitch.transform, count, frames_dir, sound_dir,vidname)
+            pool.map(self.Glitch.converts, self.Glitch.transform, count)
+            pool.map(self.Glitch.converts, self.Glitch.add_effects, count)
+            pool.map(self.Glitch.converts, self.Glitch.convertBack, count)
+            pool.close()
+        self.Glitch.save()
+            #print(result)
 
 
 
