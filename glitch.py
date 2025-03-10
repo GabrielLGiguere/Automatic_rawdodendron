@@ -182,6 +182,28 @@ class glitch():
         chunks = [element[i:i + chunk_size] for i in range(0, element.shape[0], chunk_size)] 
         return chunks
 
+    def previewing(self,vid, width):
+            for idx, frame in enumerate(iio.imiter(vid)):
+                print(idx)
+                path = "preview_frame"
+                iio.imwrite(f"{path}{idx:d}.jpg", 10)
+            os.system('python rawdodendron.py -i preview_frame.jpg  -o preview_sound.wav -w {} --ignore-history'.format(width))
+            ffcts = []
+            #sine = self.map_range(math.sin(int(x)+ math.sin(int(x))), -1, 1, 0,  32)
+            for y in config["slct_effects"]:
+                ffcts.append(self.effects[y]())
+            print(ffcts)
+            infile = "preview_sound.wav"
+            outfile = "preview_mod.wav"
+            samplerate = 44100.0
+            with AudioFile(infile).resampled_to(samplerate) as f:
+                audio = f.read(f.frames)
+            board = Pedalboard(ffcts)
+            effected = board(audio, samplerate)
+            with AudioFile(outfile, 'w', samplerate, effected.shape[0]) as f:
+                    f.write(effected)
+                    f.close
+            os.system('python rawdodendron.py -i preview_mod.wav  -o preview_frameC.png -w {} --ignore-history'.format(width))
 
 
 class UI(tk.Frame):
